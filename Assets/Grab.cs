@@ -8,6 +8,7 @@ public class Grab : MonoBehaviour {
 	public GameObject mCurveLine;
 	public GameObject mShip;
 
+	public float kTimeStep;
 
 	public Vector3 mStartPoint;
 	private Vector3 mTargetPoint;
@@ -26,6 +27,7 @@ public class Grab : MonoBehaviour {
 	void Start () {
 		mHasHit= false;
 		mGo = false;
+		kTimeStep = 3.0f;
 
 		mStartPoint = new Vector3(0,4,0);
 		mDirectionPointer.transform.position = new Vector3(0,4,1);
@@ -36,8 +38,11 @@ public class Grab : MonoBehaviour {
 	}
 
 	void GoShipGo(){
+
 		if(mGo == false)
 			mGo = true;
+
+
 	}
 
 
@@ -66,9 +71,9 @@ public class Grab : MonoBehaviour {
 		{
 			//Deal with mouse position change
 			Vector2 moveDelta = mLastMousePos - Input.mousePosition;
-			Vector3 pos = new Vector3(moveDelta.x/25.0f, 0, moveDelta.y/25.0f);
+			Vector3 pos = new Vector3(moveDelta.x/15.0f, 0, moveDelta.y/15.0f);
 
-			//Deal with camera movement
+			//Deal with camera movement for position change
 			Quaternion camRot = Camera.main.transform.rotation;
 			pos = camRot * pos;
 			pos.y = 0;
@@ -77,7 +82,7 @@ public class Grab : MonoBehaviour {
 			mControlGrab.transform.position -= pos;
 			mTargetPoint = mControlGrab.transform.position;
 
-			//Draw the curve
+			//Draw the projected trajectory
 			for(int i = 0; i <= mSegmentCount; i++)
 			{
 				float t = i / (float) mSegmentCount;
@@ -91,11 +96,11 @@ public class Grab : MonoBehaviour {
 				resultTargetPoint = q1;
 			}
 
-			//find direction of the end points of curve
+			//find direction of the end points of curve (direction of new trajectory)
 			Vector3 d = resultDirectionPoint - resultTargetPoint;
 			float angle = Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg;
 
-			//rotate the direction pointer
+			//rotate the direction pointer to match
 			Quaternion targetRot = Quaternion.Euler(0,angle - 180.0f,0);
 			mDirectionPointer.transform.rotation = targetRot;
 			mDirectionPointer.transform.position = resultTargetPoint;
@@ -113,40 +118,44 @@ public class Grab : MonoBehaviour {
 			mHasHit = false;
 		}
 
-		if(mGo)
+		if(mGo == true)
 		{
-			//stop updating curve draw 
 			mGo = false;
-
-			//set ship to new rotation/position
-			mShip.transform.position = resultTargetPoint;
-			mShip.transform.rotation = mDirectionPointer.transform.rotation;
-
-			//update direction
-			mDirection = resultTargetPoint - resultDirectionPoint;
-
-			//add magnitude to direction
-			Vector3 dMag = resultTargetPoint - mStartPoint;
-			mDirection = mDirection.normalized * dMag.magnitude;
-
-			//update start point
-			mStartPoint = resultTargetPoint;
-
-			//new target point (start + direction*magnitude)
-			mTargetPoint = resultTargetPoint + mDirection;
-
-			//update ui positions
-			mControlGrab.transform.position = resultTargetPoint;
-			mDirectionPointer.transform.position = mTargetPoint;
-
-			//draw new curve showing next turn direction
-			for(int i = 0; i <= mSegmentCount; i++)
-			{
-				float t = i / (float) mSegmentCount;
-				Vector3 dir = mTargetPoint - mStartPoint;
-				Vector3 q1 = mStartPoint + mDirection * t;
-				mCurveLine.GetComponent<LineRenderer>().SetPosition(i, q1);
-			} 
+			SetupNextMove();
 		}
+	}
+
+	public void SetupNextMove()
+	{	
+		//set ship to new rotation/position
+		mShip.transform.position = resultTargetPoint;
+		mShip.transform.rotation = mDirectionPointer.transform.rotation;
+
+		//update direction
+		mDirection = resultTargetPoint - resultDirectionPoint;
+		
+		//add magnitude to direction
+		Vector3 dMag = resultTargetPoint - mStartPoint;
+		mDirection = mDirection.normalized * dMag.magnitude;
+		
+		//update start point = result end position
+		mStartPoint = resultTargetPoint;
+		
+		//new target point (start + direction*magnitude)
+		mTargetPoint = resultTargetPoint + mDirection;
+		
+		//update ui positions
+		mControlGrab.transform.position = resultTargetPoint;
+		mDirectionPointer.transform.position = mTargetPoint;
+		
+		//draw new curve showing next turn direction
+		for(int i = 0; i <= mSegmentCount; i++)
+		{
+			float t = i / (float) mSegmentCount;
+			Vector3 dir = mTargetPoint - mStartPoint;
+			Vector3 q1 = mStartPoint + mDirection * t;
+			mCurveLine.GetComponent<LineRenderer>().SetPosition(i, q1);
+		} 
+
 	}
 }
