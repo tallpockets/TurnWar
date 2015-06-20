@@ -1,0 +1,9 @@
+
+*.csproj
+
+Library/
+Temp/
+
+*.sln
+
+Temp/UnityTempFile-9a38959d3756a4d1eae0acd1faadf8d1
