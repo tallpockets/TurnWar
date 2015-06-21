@@ -21,28 +21,29 @@ public class Grab : MonoBehaviour {
 
 	private bool mGo;
 	private bool mHasHit;
+	private bool mNoInput;
+	private bool mFirstFrame;
 
 	public int mSegmentCount;
 
 	void Start () {
 		mHasHit= false;
+		mNoInput = true;
+		mFirstFrame = true;
 		mGo = false;
 		kTimeStep = 3.0f;
 
 		mStartPoint = new Vector3(0,4,0);
-		mDirectionPointer.transform.position = new Vector3(0,4,1);
-
 		mShip.transform.position = mStartPoint;
 
-		mDirection = new Vector3(0,0,1.0f);
+		mDirectionPointer.transform.position = new Vector3(0,4,5);
+		mDirection = new Vector3(0,0,5.0f);
 	}
 
 	void GoShipGo(){
 
 		if(mGo == false)
 			mGo = true;
-
-
 	}
 
 
@@ -54,32 +55,40 @@ public class Grab : MonoBehaviour {
 		{
 			//mLastMousePos = Input.mousePosition;
 			//mHasHit = true;
+
+
 			Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
 
 			if(Physics.Raycast(ray, out rayHit))
 			{
 				if(rayHit.transform.gameObject.layer == (int)8)
+				{
 					mHasHit = true;
+					mNoInput = false;
+				}
 
 				mLastMousePos = Input.mousePosition;
 			}
 		}
 
 
-
-		if(mHasHit)
+		if(mHasHit || mFirstFrame)
 		{
-			//Deal with mouse position change
-			Vector2 moveDelta = mLastMousePos - Input.mousePosition;
-			Vector3 pos = new Vector3(moveDelta.x/15.0f, 0, moveDelta.y/15.0f);
 
-			//Deal with camera movement for position change
-			Quaternion camRot = Camera.main.transform.rotation;
-			pos = camRot * pos;
-			pos.y = 0;
+			if(!mFirstFrame)
+			{
+				//Deal with mouse position change
+				Vector2 moveDelta = mLastMousePos - Input.mousePosition;
+				Vector3 pos = new Vector3(moveDelta.x/15.0f, 0, moveDelta.y/15.0f);
+				//Deal with camera movement for position change
+				Quaternion camRot = Camera.main.transform.rotation;
+				pos = camRot * pos;
+				pos.y = 0;
+				//update control point position
+				mControlGrab.transform.position -= pos;
+			}
+			mFirstFrame = false;
 
-			//update control point position
-			mControlGrab.transform.position -= pos;
 			mTargetPoint = mControlGrab.transform.position;
 
 			//Draw the projected trajectory
@@ -121,9 +130,25 @@ public class Grab : MonoBehaviour {
 		if(mGo == true)
 		{
 			mGo = false;
+
+			//SetupNextMove uses result target point, if you never clicked on the pointer this doesn't happen, so make sure it does here
+			for(int i = 0; i <= mSegmentCount; i++)
+			{
+				float t = i / (float) mSegmentCount;
+				Vector3 dir = mTargetPoint - mStartPoint;
+				Vector3 q1 = mStartPoint + ((mDirection + (dir * t)) * t);	
+				if(i == mSegmentCount-1)
+					resultDirectionPoint = q1;
+				resultTargetPoint = q1;
+			}
+
+
 			SetupNextMove();
+			mNoInput = true;
 		}
 	}
+
+
 
 	public void SetupNextMove()
 	{	
@@ -131,13 +156,16 @@ public class Grab : MonoBehaviour {
 		mShip.transform.position = resultTargetPoint;
 		mShip.transform.rotation = mDirectionPointer.transform.rotation;
 
-		//update direction
-		mDirection = resultTargetPoint - resultDirectionPoint;
-		
-		//add magnitude to direction
-		Vector3 dMag = resultTargetPoint - mStartPoint;
-		mDirection = mDirection.normalized * dMag.magnitude;
-		
+		if(mNoInput){
+			//if not input continue in same direction
+		} else{
+			//update direction
+			mDirection = resultTargetPoint - resultDirectionPoint;
+			//add magnitude to direction
+			Vector3 dMag = resultTargetPoint - mStartPoint;
+			mDirection = mDirection.normalized * dMag.magnitude;
+		}
+
 		//update start point = result end position
 		mStartPoint = resultTargetPoint;
 		
@@ -145,7 +173,7 @@ public class Grab : MonoBehaviour {
 		mTargetPoint = resultTargetPoint + mDirection;
 		
 		//update ui positions
-		mControlGrab.transform.position = resultTargetPoint;
+		mControlGrab.transform.position = mStartPoint;
 		mDirectionPointer.transform.position = mTargetPoint;
 		
 		//draw new curve showing next turn direction
