@@ -9,6 +9,13 @@ public class Grab : MonoBehaviour {
 	public GameObject mShip;
 
 	public float kTimeStep;
+	private float mStep;
+
+	private Vector3 mCurrentPosition;
+	private Vector3 mLastCurrentPosition;
+	private Vector3 mCurrentDirection;
+	private Vector3 mLastCurrentDirection;
+	private int mDirectionUpdateModulo;
 
 	public Vector3 mStartPoint;
 	private Vector3 mTargetPoint;
@@ -20,6 +27,8 @@ public class Grab : MonoBehaviour {
 	private Vector3 mLastMousePos;
 
 	private bool mGo;
+	private bool mLastGo;
+
 	private bool mHasHit;
 	private bool mNoInput;
 	private bool mFirstFrame;
@@ -43,7 +52,11 @@ public class Grab : MonoBehaviour {
 	void GoShipGo(){
 
 		if(mGo == false)
+		{
 			mGo = true;
+			mStep = 0;
+			mLastCurrentPosition = new Vector3(0,0,0);
+		}
 	}
 
 
@@ -129,32 +142,64 @@ public class Grab : MonoBehaviour {
 
 		if(mGo == true)
 		{
-			mGo = false;
-
-			//SetupNextMove uses result target point, if you never clicked on the pointer this doesn't happen, so make sure it does here
-			for(int i = 0; i <= mSegmentCount; i++)
+			if(mGo == true && mGo != mLastGo)
 			{
-				float t = i / (float) mSegmentCount;
-				Vector3 dir = mTargetPoint - mStartPoint;
-				Vector3 q1 = mStartPoint + ((mDirection + (dir * t)) * t);	
-				if(i == mSegmentCount-1)
-					resultDirectionPoint = q1;
-				resultTargetPoint = q1;
+				//enable vfx
+				//disable line draw
+				mCurveLine.GetComponent<LineRenderer>().enabled = false;
+				mDirectionPointer.SetActive(false);
 			}
 
+			mStep += Time.deltaTime;
 
-			SetupNextMove();
-			mNoInput = true;
+			Vector3 dir = mTargetPoint - mStartPoint;
+			Vector3 mCurrentPosition = mStartPoint + ((mDirection + (dir * mStep/kTimeStep)) * mStep/kTimeStep);
+			mShip.transform.position = mCurrentPosition;
+
+			//find direction of the end points of curve (direction of new trajectory)
+			mCurrentDirection = mCurrentPosition - mLastCurrentPosition;
+
+			float angle = Mathf.Atan2(mCurrentDirection.x, mCurrentDirection.z) * Mathf.Rad2Deg;
+
+			float bank = Vector3.Dot(mLastCurrentDirection.normalized, mCurrentDirection.normalized);
+			bank = Mathf.Abs(bank-1);
+			bank = bank * 90.0f;
+
+			//rotate the ship
+			Quaternion targetRot = Quaternion.Euler(0,angle,bank);
+			mShip.transform.rotation = targetRot;
+
+			if(mStep >= kTimeStep)
+			{
+				mGo = false;
+				resultDirectionPoint = mLastCurrentPosition;
+				resultTargetPoint = mCurrentPosition;
+				SetupNextMove();
+				mNoInput = true;
+
+				//disable vfx
+				//enable line draw
+				mCurveLine.GetComponent<LineRenderer>().enabled = true;
+				mDirectionPointer.SetActive(true);
+			}
+
+			mLastCurrentPosition = mCurrentPosition;
+			mLastCurrentDirection = mCurrentDirection;
 		}
+
+
+
+		mLastGo = mGo;
 	}
+
 
 
 
 	public void SetupNextMove()
 	{	
 		//set ship to new rotation/position
-		mShip.transform.position = resultTargetPoint;
-		mShip.transform.rotation = mDirectionPointer.transform.rotation;
+		//mShip.transform.position = resultTargetPoint;
+		//mShip.transform.rotation = mDirectionPointer.transform.rotation;
 
 		if(mNoInput){
 			//if not input continue in same direction
@@ -180,7 +225,6 @@ public class Grab : MonoBehaviour {
 		for(int i = 0; i <= mSegmentCount; i++)
 		{
 			float t = i / (float) mSegmentCount;
-			Vector3 dir = mTargetPoint - mStartPoint;
 			Vector3 q1 = mStartPoint + mDirection * t;
 			mCurveLine.GetComponent<LineRenderer>().SetPosition(i, q1);
 		} 
