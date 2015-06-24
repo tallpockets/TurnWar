@@ -1,4 +1,5 @@
 ﻿using UnityEngine;
+using UnityEngine.UI;
 using System.Collections;
 
 public class Grab : MonoBehaviour {
@@ -7,8 +8,11 @@ public class Grab : MonoBehaviour {
 	public GameObject mControlGrab;
 	public GameObject mCurveLine;
 	public GameObject mShip;
+	public GameObject mSlider;
+	private float mSliderTime;
 
-	public float kTimeStep;
+	public float kTurnStep; //how long is the time in pause turn
+	public float kTimeStep;///how much time passes in a simulate turn
 	private float mStep;
 
 	private Vector3 mCurrentPosition;
@@ -47,14 +51,25 @@ public class Grab : MonoBehaviour {
 
 		mDirectionPointer.transform.position = new Vector3(0,4,5);
 		mDirection = new Vector3(0,0,5.0f);
+
+		StartCoroutine("Turn");
 	}
 
-	void GoShipGo(){
 
+	IEnumerator Turn()
+	{
+		yield return new WaitForSeconds(kTurnStep);
+		GoShipGo();
+	}
+	
+	
+	void GoShipGo(){
 		if(mGo == false)
 		{
 			mGo = true;
+			mHasHit = false;
 			mStep = 0;
+			mSliderTime = 0;
 			mLastCurrentPosition = new Vector3(0,0,0);
 		}
 	}
@@ -66,10 +81,6 @@ public class Grab : MonoBehaviour {
 
 		if(Input.GetMouseButtonDown(0)) 
 		{
-			//mLastMousePos = Input.mousePosition;
-			//mHasHit = true;
-
-
 			Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
 
 			if(Physics.Raycast(ray, out rayHit))
@@ -79,11 +90,9 @@ public class Grab : MonoBehaviour {
 					mHasHit = true;
 					mNoInput = false;
 				}
-
 				mLastMousePos = Input.mousePosition;
 			}
 		}
-
 
 		if(mHasHit || mFirstFrame)
 		{
@@ -142,6 +151,7 @@ public class Grab : MonoBehaviour {
 
 		if(mGo == true)
 		{
+			//only do this the first time you start animating
 			if(mGo == true && mGo != mLastGo)
 			{
 				//enable vfx
@@ -149,45 +159,61 @@ public class Grab : MonoBehaviour {
 				mCurveLine.GetComponent<LineRenderer>().enabled = false;
 				mDirectionPointer.SetActive(false);
 			}
-
-			mStep += Time.deltaTime;
-
+		
+			//get the current position
 			Vector3 dir = mTargetPoint - mStartPoint;
 			Vector3 mCurrentPosition = mStartPoint + ((mDirection + (dir * mStep/kTimeStep)) * mStep/kTimeStep);
 			mShip.transform.position = mCurrentPosition;
 
-			//find direction of the end points of curve (direction of new trajectory)
-			mCurrentDirection = mCurrentPosition - mLastCurrentPosition;
 
-			float angle = Mathf.Atan2(mCurrentDirection.x, mCurrentDirection.z) * Mathf.Rad2Deg;
+			//skip rotating the first step, since we are already in the right rotation
+			//and because it's a pain to dig up the previous position at this point
+			if(mStep != 0)
+			{
+				//find the new direction to point in
+				mCurrentDirection = mCurrentPosition - mLastCurrentPosition;
+			
+				float angle = Mathf.Atan2(mCurrentDirection.x, mCurrentDirection.z) * Mathf.Rad2Deg;
 
-			float bank = Vector3.Dot(mLastCurrentDirection.normalized, mCurrentDirection.normalized);
-			bank = Mathf.Abs(bank-1);
-			bank = bank * 90.0f;
+				//float bank = Vector3.Dot(mLastCurrentDirection.normalized, mCurrentDirection.normalized);
+				//bank = Mathf.Abs(bank-1);
+				//bank = bank * 90.0f;
 
-			//rotate the ship
-			Quaternion targetRot = Quaternion.Euler(0,angle,bank);
-			mShip.transform.rotation = targetRot;
+				//rotate the ship
+				Quaternion targetRot = Quaternion.Euler(0,angle,0);
+				mShip.transform.rotation = targetRot;
+			}
 
+			//do this at the very end
 			if(mStep >= kTimeStep)
 			{
 				mGo = false;
 				resultDirectionPoint = mLastCurrentPosition;
 				resultTargetPoint = mCurrentPosition;
+
 				SetupNextMove();
-				mNoInput = true;
+				mNoInput = true; //must happen after SetupNextMove
 
 				//disable vfx
 				//enable line draw
 				mCurveLine.GetComponent<LineRenderer>().enabled = true;
 				mDirectionPointer.SetActive(true);
+
+				StartCoroutine("Turn");
 			}
 
 			mLastCurrentPosition = mCurrentPosition;
 			mLastCurrentDirection = mCurrentDirection;
+			mStep += Time.deltaTime;
 		}
 
+		if(mGo == false)
+		{
+			Slider slid = mSlider.GetComponent<Slider>();
+			slid.value = Mathf.Abs((mSliderTime/kTurnStep)-1);
 
+			mSliderTime += Time.deltaTime; 
+		}
 
 		mLastGo = mGo;
 	}
@@ -197,9 +223,6 @@ public class Grab : MonoBehaviour {
 
 	public void SetupNextMove()
 	{	
-		//set ship to new rotation/position
-		//mShip.transform.position = resultTargetPoint;
-		//mShip.transform.rotation = mDirectionPointer.transform.rotation;
 
 		if(mNoInput){
 			//if not input continue in same direction
